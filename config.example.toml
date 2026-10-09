@@ -1,0 +1,39 @@
+notify = true
+
+[vault]
+path = "~/Documents/MyVault"
+inbox = "Inbox.md"
+section = "## Inbox"
+scan = ["."]
+exclude = []
+task_template = "- [ ] ({tag}) {text} ([thread]({link}))"
+completion_template = "[completion:: {date}]"
+complete = "created"
+
+[slack]
+user_id = ""
+sources = ["mentions", "dms", "threads", "channels"]
+channels = []
+channels_command = ""
+team_email_domains = []
+
+[agent]
+claude = "claude"
+model = "claude-sonnet-5-5"
+effort = ""
+max_budget_usd = 1.0
+timeout_minutes = 15
+isolate = true
+extra_args = []
+prompt_file = ""
+style = "Start with a verb. Use at most 20 words. Say what to do and for whom."
+instructions = ""
+
+[schedule]
+every_hours = 2
+check_minutes = 15
+idle_minutes = 10
+retry_minutes = 30
+first_lookback_hours = 24
+max_lookback_hours = 72
+label = "obsidian-slack-sweep"
