@@ -8,7 +8,7 @@ from dataclasses import dataclass, field, fields
 from pathlib import Path
 
 APP = "obsidian-slack-sweep"
-SOURCES = ("mentions", "dms", "threads", "channels")
+SOURCES = ("mentions", "dms", "threads", "channels", "keywords")
 COMPLETE_SCOPES = ("created", "linked")
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
 
@@ -90,6 +90,8 @@ class Slack:
     sources: tuple[str, ...] = SOURCES
     channels: tuple[str, ...] = ()
     channels_command: str = ""
+    keywords: tuple[str, ...] = ()
+    keywords_command: str = ""
     team_email_domains: tuple[str, ...] = ()
     read_tools: tuple[str, ...] = READ_TOOLS
     write_tools: tuple[str, ...] = WRITE_TOOLS
@@ -221,17 +223,25 @@ def _validate(c: Config) -> None:
             raise ConfigError(f"{where} must be greater than 0")
 
 
-def channels(s: Slack) -> tuple[list[str], list[str]]:
-    names, warnings = list(s.channels), []
-    if s.channels_command:
+def _listed(static: tuple[str, ...], command: str, label: str) -> tuple[list[str], list[str]]:
+    values, warnings = list(static), []
+    if command:
         try:
-            done = subprocess.run(
-                s.channels_command, shell=True, capture_output=True, text=True, timeout=120, check=True
-            )
-            names += done.stdout.splitlines()
+            done = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=120, check=True)
+            values += done.stdout.splitlines()
         except subprocess.CalledProcessError as exc:
-            warnings.append(f"channels_command exited {exc.returncode}: {exc.stderr.strip()[:200]}")
+            warnings.append(f"{label} exited {exc.returncode}: {exc.stderr.strip()[:200]}")
         except (subprocess.SubprocessError, OSError) as exc:
-            warnings.append(f"channels_command failed: {exc}")
-    cleaned = (n.strip().lstrip("#") for n in names)
-    return list(dict.fromkeys(n for n in cleaned if n)), warnings
+            warnings.append(f"{label} failed: {exc}")
+    return [v.strip() for v in values if v.strip()], warnings
+
+
+def channels(s: Slack) -> tuple[list[str], list[str]]:
+    names, warnings = _listed(s.channels, s.channels_command, "channels_command")
+    return list(dict.fromkeys(n.lstrip("#") for n in names)), warnings
+
+
+def keywords(s: Slack) -> tuple[list[str], list[str]]:
+    words, warnings = _listed(s.keywords, s.keywords_command, "keywords_command")
+    quoted = (f'"{w}"' if " " in w and not w.startswith('"') else w for w in words)
+    return list(dict.fromkeys(quoted)), warnings

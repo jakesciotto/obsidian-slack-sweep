@@ -12,9 +12,11 @@ complete = "created"
 
 [slack]
 user_id = ""
-sources = ["mentions", "dms", "threads", "channels"]
+sources = ["mentions", "dms", "threads", "channels", "keywords"]
 channels = []
 channels_command = ""
+keywords = []
+keywords_command = ""
 team_email_domains = []
 
 [agent]

@@ -58,7 +58,7 @@ def _local(ts: int) -> str:
     return time.strftime("%Y-%m-%d %H:%M %Z", time.localtime(ts))
 
 
-def _sources(cfg: Config, channels: list[str]) -> str:
+def _sources(cfg: Config, channels: list[str], keywords: list[str]) -> str:
     uid = cfg.slack.user_id or "USER_ID"
     lines = []
     if "mentions" in cfg.slack.sources:
@@ -78,6 +78,14 @@ def _sources(cfg: Config, channels: list[str]) -> str:
         for i in range(0, len(channels), CHANNELS_PER_SEARCH):
             chunk = " ".join(f"in:#{name}" for name in channels[i : i + CHANNELS_PER_SEARCH])
             lines.append(f'  - `filters: "{chunk}"`')
+    if "keywords" in cfg.slack.sources and keywords:
+        lines.append(
+            "- Account keywords: run one search per keyword below, and pass `include_bots: true`. A hit needs action "
+            "when the message is about that account and asks something of the person, reports a problem, an escalation, "
+            "a billing or contract change, or a risk to the account. A keyword can also be a common word: skip hits that "
+            "are not about the account. Skip hits in the watched channels, because their own search covers them."
+        )
+        lines += [f"  - `keywords: {json.dumps([word])}`" for word in keywords]
     return "\n".join(lines) if lines else "- No sources are enabled. Skip job 1."
 
 
@@ -99,7 +107,7 @@ def _open_tasks(tasks: list[dict]) -> str:
     return "\n".join(rows)
 
 
-def prompt(cfg: Config, since: int, until: int, channels: list[str], tasks: list[dict]) -> str:
+def prompt(cfg: Config, since: int, until: int, channels: list[str], keywords: list[str], tasks: list[dict]) -> str:
     source = Path(cfg.agent.prompt_file).expanduser() if cfg.agent.prompt_file else PROMPT
     user_id = cfg.slack.user_id or (
         "not configured. Read it from the description of the Slack search tool, which states the logged-in user id. "
@@ -113,7 +121,7 @@ def prompt(cfg: Config, since: int, until: int, channels: list[str], tasks: list
         since_text=_local(since),
         until_text=_local(until),
         team_rule=_team_rule(cfg),
-        sources=_sources(cfg, channels),
+        sources=_sources(cfg, channels, keywords),
         style=cfg.agent.style,
         open_tasks=_open_tasks(tasks),
         instructions=f"\n## Guidance from the person\n\n{extra}\n" if extra else "",

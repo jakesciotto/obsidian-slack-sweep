@@ -179,12 +179,14 @@ def _run(cfg: Config, now_flag: bool, dry_run: bool) -> int:
     records = state["tasks"]
     reconcile(records, tasks, now)
     names, warnings = config.channels(cfg.slack)
+    words, more = config.keywords(cfg.slack)
+    warnings += more
     rows = open_tasks(records, tasks, cfg.vault.complete)
     checkable = {k for row in rows if row["check"] for k in row["keys"]}
-    run_record = {"since": since, "until": until, "channels": len(names), "warnings": warnings}
+    run_record = {"since": since, "until": until, "channels": len(names), "keywords": len(words), "warnings": warnings}
 
     try:
-        result, meta = agent.run(cfg, agent.prompt(cfg, since, until, names, rows))
+        result, meta = agent.run(cfg, agent.prompt(cfg, since, until, names, words, rows))
     except agent.AgentError as exc:
         run_record.update(error=str(exc), meta=exc.meta)
         log(f"error: {exc}")
