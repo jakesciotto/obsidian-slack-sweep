@@ -34,7 +34,7 @@ Set `[vault] path` in the config. [docs/configuration.md](docs/configuration.md)
 ./bin/obsidian-slack-sweep install
 ```
 
-macOS blocks launchd jobs from `~/Documents`, `~/Desktop`, `~/Downloads` and iCloud Drive. If your vault is there, give Full Disk Access to `~/.local/share/obsidian-slack-sweep/obsidian-slack-sweep` in System Settings > Privacy & Security.
+If your vault is in a protected folder such as `~/Documents`, macOS asks on the first scheduled run whether `obsidian-slack-sweep` can access it. Click Allow. If you click Don't Allow, turn the launcher on in System Settings > Privacy & Security > Files and Folders, or give Full Disk Access to `~/.local/share/obsidian-slack-sweep/obsidian-slack-sweep`.
 
 Commands: `run` (with `--now` or `--dry-run`), `install`, `uninstall`, `status`. State and logs are in `~/.local/state/obsidian-slack-sweep/`.
 
@@ -42,7 +42,7 @@ Commands: `run` (with `--now` or `--dry-run`), `install`, `uninstall`, `status`.
 
 - The agent gets only the Slack read tools. A preflight run lists every MCP server, the real run denies all of them except Slack, and hooks and plugins are off. The run stops if any tool has no deny rule.
 - The agent never writes to the vault. Python checks its JSON, removes links, tags and fields from the task text, and reads the note again before each write.
-- The launcher that holds Full Disk Access runs one fixed command and removes `DYLD_*` and `PYTHON*` variables first.
+- The launcher holds the folder access. It runs one fixed command and removes `DYLD_*` and `PYTHON*` variables first.
 
 ## Limits
 

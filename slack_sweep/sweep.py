@@ -232,12 +232,12 @@ def _run(cfg: Config, now_flag: bool, dry_run: bool) -> int:
 
 def _blocked(cfg: Config, state: dict, state_path: Path, now: float, dry_run: bool) -> int:
     launcher = config.data_dir() / config.APP
-    message = f"cannot read the vault; give Full Disk Access to {launcher}"
+    message = f"cannot read the vault; allow {launcher} in System Settings > Privacy & Security > Files and Folders"
     log(f"error: {message}")
     if not dry_run and not state.get("vault_blocked"):
         state["vault_blocked"] = now
         save_state(state_path, state, now)
-        notify(cfg, "Cannot read the vault. Give Full Disk Access to the sweep launcher.")
+        notify(cfg, "Cannot read the vault. Allow the sweep launcher in Privacy & Security > Files and Folders.")
     return 1
 
 

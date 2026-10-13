@@ -32,10 +32,9 @@ def cmd_install(cfg: config.Config, args: argparse.Namespace) -> int:
     print(f"launcher:     {launcher}")
     if rebuilt:
         print()
-        print("Give the launcher Full Disk Access, or it cannot read a vault under ~/Documents or iCloud:")
-        print("  1. Open System Settings > Privacy & Security > Full Disk Access.")
-        print("  2. Click +, press Cmd+Shift+G, and paste the launcher path above.")
-        print("  3. Turn on the new entry.")
+        print("If the vault is in ~/Documents or another protected folder, macOS asks on the first scheduled run.")
+        print("Click Allow. If you click Don't Allow, turn the launcher on in")
+        print("System Settings > Privacy & Security > Files and Folders.")
         print("A rebuilt launcher has a new signature, so macOS asks again after each rebuild.")
     return 0
 
