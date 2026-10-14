@@ -16,6 +16,7 @@ from .config import Config
 
 LAUNCHER_SOURCE = Path(__file__).with_name("launcher.c")
 WINDOW_OVERLAP = 600
+DUE_GRACE = 60
 
 
 class Busy(Exception):
@@ -41,7 +42,7 @@ def due(state: dict, now: float, s: config.Schedule) -> tuple[bool, float]:
         return True, 0.0
     wait = s.every_hours * 3600 if state.get("last_attempt_ok", True) else s.retry_minutes * 60
     remaining = last + wait - now
-    return remaining <= 0, max(remaining, 0.0)
+    return remaining <= DUE_GRACE, max(remaining, 0.0)
 
 
 def window(state: dict, now: float, s: config.Schedule) -> tuple[int, int]:

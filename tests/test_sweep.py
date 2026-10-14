@@ -3,8 +3,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from slack_sweep import agent, sweep, vault
-from slack_sweep.config import Config, Vault
+from slack_sweep import agent, schedule, sweep, vault
+from slack_sweep.config import Config, Schedule, Vault
 
 TODAY = "2026-10-09"
 NOW = 1_791_500_000.0
@@ -109,6 +109,12 @@ class SweepTest(unittest.TestCase):
 
         late = {"tools": init["tools"] + ["mcp__late__delete_all"], "mcp_servers": init["mcp_servers"] + [{"name": "late"}]}
         self.assertEqual(agent.exposed(cfg, late, rules), ["mcp__late__delete_all", "late"])
+
+    def test_a_check_that_lands_just_before_the_interval_runs(self):
+        every = Schedule(every_hours=0.25, check_minutes=15)
+        last = {"last_attempt_at": NOW}
+        self.assertTrue(schedule.due(last, NOW + 900 - 2, every)[0])
+        self.assertFalse(schedule.due(last, NOW + 600, every)[0])
 
 if __name__ == "__main__":
     unittest.main()
