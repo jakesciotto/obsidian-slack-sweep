@@ -29,7 +29,7 @@ Top level: `notify` (default `true`) shows a macOS notification after a sweep th
 | `keywords_command` | `""` | A shell command that prints more keywords, one per line. |
 | `team_email_domains` | `[]` | In watched channels, a reply from these email domains counts as handled. |
 | `read_tools` | claude.ai Slack read tools | The only tools the agent may call. |
-| `write_tools` | claude.ai Slack write tools | Tools that the run names as denied. |
+| `write_tools` | claude.ai Slack write tools and `slack_read_canvas` | Tools that the run names as denied. |
 
 ## `[agent]`
 

@@ -33,6 +33,7 @@ WRITE_TOOLS = tuple(
         "slack_schedule_message",
         "slack_create_canvas",
         "slack_update_canvas",
+        "slack_read_canvas",
     )
 )
 

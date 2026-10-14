@@ -110,6 +110,13 @@ class SweepTest(unittest.TestCase):
         late = {"tools": init["tools"] + ["mcp__late__delete_all"], "mcp_servers": init["mcp_servers"] + [{"name": "late"}]}
         self.assertEqual(agent.exposed(cfg, late, rules), ["mcp__late__delete_all", "late"])
 
+    def test_a_slack_tool_the_preflight_missed_is_still_denied(self):
+        cfg = Config(vault=self.cfg)
+        preflight = {"tools": list(cfg.slack.read_tools), "mcp_servers": [{"name": "claude.ai Slack"}]}
+        rules = agent.deny_rules(cfg, preflight)
+        real = {**preflight, "tools": preflight["tools"] + ["mcp__claude_ai_Slack__slack_read_canvas"]}
+        self.assertEqual(agent.exposed(cfg, real, rules), [])
+
     def test_a_check_that_lands_just_before_the_interval_runs(self):
         every = Schedule(every_hours=0.25, check_minutes=15)
         last = {"last_attempt_at": NOW}
