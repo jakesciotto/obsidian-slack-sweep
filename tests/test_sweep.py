@@ -1,3 +1,5 @@
+import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -20,6 +22,27 @@ INBOX = """# Inbox
 ## Later
 - [ ] someday
 """
+
+
+class FakeClaude:
+    def __init__(self, *events):
+        self.stdin = io.StringIO()
+        self.stdout = iter(json.dumps(e) for e in events)
+        self.returncode = 0
+
+    def poll(self):
+        return 0
+
+    def kill(self):
+        pass
+
+    def wait(self):
+        return 0
+
+
+def init(status, tools):
+    return {"type": "system", "subtype": "init", "tools": tools,
+            "mcp_servers": [{"name": "claude.ai Slack", "status": status}]}
 
 
 class SweepTest(unittest.TestCase):
@@ -116,6 +139,19 @@ class SweepTest(unittest.TestCase):
         rules = agent.deny_rules(cfg, preflight)
         real = {**preflight, "tools": preflight["tools"] + ["mcp__claude_ai_Slack__slack_read_canvas"]}
         self.assertEqual(agent.exposed(cfg, real, rules), [])
+
+    def test_a_run_retries_while_the_slack_connector_is_pending(self):
+        cfg = Config(vault=self.cfg)
+        read = cfg.slack.read_tools[0]
+        done = {"type": "result", "subtype": "success", "structured_output": {"notes": "swept"}}
+        starts = [FakeClaude(init("pending", [])), FakeClaude(init("connected", [read]), done)]
+        with mock.patch.object(agent, "preflight", return_value=init("connected", [read])), \
+                mock.patch.object(agent.subprocess, "Popen", side_effect=starts) as popen, \
+                mock.patch.object(agent.time, "sleep"):
+            output, meta = agent.run(cfg, "sweep")
+        self.assertEqual(popen.call_count, 2)
+        self.assertEqual(output["notes"], "swept")
+        self.assertEqual(meta["slack_status"], "connected")
 
     def test_a_check_that_lands_just_before_the_interval_runs(self):
         every = Schedule(every_hours=0.25, check_minutes=15)

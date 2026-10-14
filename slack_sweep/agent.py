@@ -54,6 +54,10 @@ class AgentError(Exception):
         self.meta = meta or {}
 
 
+class SlackNotReady(AgentError):
+    pass
+
+
 def _local(ts: int) -> str:
     return time.strftime("%Y-%m-%d %H:%M %Z", time.localtime(ts))
 
@@ -135,6 +139,8 @@ ISOLATION_ENV = {
 }
 EXPECTED_BUILTINS = frozenset({"StructuredOutput"})
 PREFLIGHT_SECONDS = 120
+SLACK_ATTEMPTS = 3
+SLACK_RETRY_SECONDS = 15
 
 
 def auth(cfg: Config) -> dict:
@@ -263,6 +269,28 @@ def run(cfg: Config, text: str) -> tuple[dict, dict]:
         rules = deny_rules(cfg, preflight(cfg))
         settings = _settings(cfg, rules)
         meta["deny_rules"] = len(rules)
+    for attempt in range(1, SLACK_ATTEMPTS + 1):
+        meta["attempts"] = attempt
+        try:
+            returncode, result = _start(cfg, settings, text, meta, rules)
+            break
+        except SlackNotReady:
+            if attempt == SLACK_ATTEMPTS:
+                raise
+            time.sleep(SLACK_RETRY_SECONDS)
+    if result is None:
+        raise AgentError(f"claude exited {returncode} without a result: {meta['stderr'][-300:]}", meta)
+    for field in ("total_cost_usd", "duration_ms", "num_turns", "subtype", "permission_denials"):
+        meta[field] = result.get(field)
+    if result.get("is_error") or result.get("subtype") != "success":
+        raise AgentError(f"agent run failed ({result.get('subtype')}): {str(result.get('result'))[:300]}", meta)
+    output = result.get("structured_output")
+    if output is None:
+        output = _salvage(result.get("result") or "")
+    return _validate(output), meta
+
+
+def _start(cfg: Config, settings: dict | None, text: str, meta: dict, rules: list[str]) -> tuple[int, dict | None]:
     with tempfile.TemporaryFile(mode="w+") as stderr:
         try:
             proc = subprocess.Popen(
@@ -287,16 +315,7 @@ def run(cfg: Config, text: str) -> tuple[dict, dict]:
             proc.wait()
             stderr.seek(0)
             meta["stderr"] = stderr.read()[-2000:]
-    if result is None:
-        raise AgentError(f"claude exited {proc.returncode} without a result: {meta['stderr'][-300:]}", meta)
-    for field in ("total_cost_usd", "duration_ms", "num_turns", "subtype", "permission_denials"):
-        meta[field] = result.get(field)
-    if result.get("is_error") or result.get("subtype") != "success":
-        raise AgentError(f"agent run failed ({result.get('subtype')}): {str(result.get('result'))[:300]}", meta)
-    output = result.get("structured_output")
-    if output is None:
-        output = _salvage(result.get("result") or "")
-    return _validate(output), meta
+    return proc.returncode, result
 
 
 def _read_events(proc: subprocess.Popen, cfg: Config, meta: dict, rules: list[str]) -> dict | None:
@@ -310,9 +329,18 @@ def _read_events(proc: subprocess.Popen, cfg: Config, meta: dict, rules: list[st
             tools = event.get("tools") or []
             meta["mcp_servers"] = len(event.get("mcp_servers") or [])
             meta["slack_tools"] = sorted(t for t in tools if t in cfg.slack.read_tools)
+            kept = {_tool_prefix(t) for t in cfg.slack.read_tools}
+            meta["slack_status"] = next(
+                (s.get("status") for s in event.get("mcp_servers") or [] if _server_prefix(s.get("name", "")) in kept),
+                "missing",
+            )
             if not meta["slack_tools"]:
                 proc.kill()
-                raise AgentError("no Slack read tool is loaded; check that the claude.ai Slack connector is connected", meta)
+                raise SlackNotReady(
+                    f"no Slack read tool is loaded after {meta['attempts']} attempts (server {meta['slack_status']}); "
+                    "check that the claude.ai Slack connector is connected",
+                    meta,
+                )
             loose = exposed(cfg, event, rules) if cfg.agent.isolate else []
             if loose:
                 proc.kill()
