@@ -40,7 +40,7 @@ Commands: `run` (with `--now` or `--dry-run`), `install`, `uninstall`, `status`.
 
 ## Safety
 
-- The agent gets only the Slack read tools. A preflight run lists every MCP server, the real run denies all of them except Slack, and hooks and plugins are off. The run stops if any tool has no deny rule.
+- The agent gets only the Slack read tools. A preflight run lists every MCP server, the real run denies all of them except Slack, and hooks and plugins are off. If the real run lists a tool or server that has no deny rule, the sweep adds the rule and starts again once. The run stops if a tool still has no deny rule.
 - The agent never writes to the vault. Python checks its JSON, removes links, tags and fields from the task text, and reads the note again before each write.
 - The launcher holds the folder access. It runs one fixed command and removes `DYLD_*` and `PYTHON*` variables first.
 

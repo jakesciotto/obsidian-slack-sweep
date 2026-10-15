@@ -58,6 +58,12 @@ class SlackNotReady(AgentError):
     pass
 
 
+class RulesStale(AgentError):
+    def __init__(self, message: str, meta: dict, init: dict):
+        super().__init__(message, meta)
+        self.init = init
+
+
 def _local(ts: int) -> str:
     return time.strftime("%Y-%m-%d %H:%M %Z", time.localtime(ts))
 
@@ -269,15 +275,25 @@ def run(cfg: Config, text: str) -> tuple[dict, dict]:
         rules = deny_rules(cfg, preflight(cfg))
         settings = _settings(cfg, rules)
         meta["deny_rules"] = len(rules)
-    for attempt in range(1, SLACK_ATTEMPTS + 1):
-        meta["attempts"] = attempt
+    slack_tries = 0
+    while True:
+        meta["attempts"] = meta.get("attempts", 0) + 1
         try:
             returncode, result = _start(cfg, settings, text, meta, rules)
             break
         except SlackNotReady:
-            if attempt == SLACK_ATTEMPTS:
+            slack_tries += 1
+            if slack_tries == SLACK_ATTEMPTS:
                 raise
             time.sleep(SLACK_RETRY_SECONDS)
+        except RulesStale as exc:
+            added = sorted(set(deny_rules(cfg, exc.init)) - set(rules))
+            if not added or "added_rules" in meta:
+                raise
+            meta["added_rules"] = added
+            rules = sorted(set(rules) | set(added))
+            settings = _settings(cfg, rules)
+            meta["deny_rules"] = len(rules)
     if result is None:
         raise AgentError(f"claude exited {returncode} without a result: {meta['stderr'][-300:]}", meta)
     for field in ("total_cost_usd", "duration_ms", "num_turns", "subtype", "permission_denials"):
@@ -345,7 +361,7 @@ def _read_events(proc: subprocess.Popen, cfg: Config, meta: dict, rules: list[st
             if loose:
                 proc.kill()
                 meta["exposed"] = loose
-                raise AgentError(f"tools without a deny rule: {', '.join(loose[:10])}", meta)
+                raise RulesStale(f"tools without a deny rule: {', '.join(loose[:10])}", meta, event)
         elif event.get("type") == "result":
             result = event
     return result

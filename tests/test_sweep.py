@@ -45,6 +45,12 @@ def init(status, tools):
             "mcp_servers": [{"name": "claude.ai Slack", "status": status}]}
 
 
+def late_init(read, *servers):
+    event = init("connected", [read] + [f"mcp__{s}__delete_all" for s in servers])
+    event["mcp_servers"] += [{"name": s} for s in servers]
+    return event
+
+
 class SweepTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
@@ -152,6 +158,31 @@ class SweepTest(unittest.TestCase):
         self.assertEqual(popen.call_count, 2)
         self.assertEqual(output["notes"], "swept")
         self.assertEqual(meta["slack_status"], "connected")
+
+    def test_a_server_the_preflight_missed_is_denied_on_a_restart(self):
+        cfg = Config(vault=self.cfg)
+        read = cfg.slack.read_tools[0]
+        done = {"type": "result", "subtype": "success", "structured_output": {"notes": "swept"}}
+        late = late_init(read, "late")
+        starts = [FakeClaude(late), FakeClaude(late, done)]
+        with mock.patch.object(agent, "preflight", return_value=init("connected", [read])), \
+                mock.patch.object(agent.subprocess, "Popen", side_effect=starts) as popen:
+            output, meta = agent.run(cfg, "sweep")
+        cmd = popen.call_args_list[1].args[0]
+        denied = json.loads(cmd[cmd.index("--settings") + 1])["permissions"]["deny"]
+        self.assertIn("mcp__late", denied)
+        self.assertEqual(meta["added_rules"], ["mcp__late"])
+        self.assertEqual(output["notes"], "swept")
+
+    def test_a_server_still_exposed_after_the_restart_stops_the_run(self):
+        cfg = Config(vault=self.cfg)
+        read = cfg.slack.read_tools[0]
+        starts = [FakeClaude(late_init(read, "late")), FakeClaude(late_init(read, "late", "later"))]
+        with mock.patch.object(agent, "preflight", return_value=init("connected", [read])), \
+                mock.patch.object(agent.subprocess, "Popen", side_effect=starts) as popen:
+            with self.assertRaisesRegex(agent.AgentError, "tools without a deny rule: .*later"):
+                agent.run(cfg, "sweep")
+        self.assertEqual(popen.call_count, 2)
 
     def test_a_check_that_lands_just_before_the_interval_runs(self):
         every = Schedule(every_hours=0.25, check_minutes=15)
